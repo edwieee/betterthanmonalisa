@@ -1,3 +1,6 @@
+import Entrance from '../components/Entrance';
+import './entrance.css';
+
 export default function Home() {
-  return <main><h1>Better Than Mona Lisa</h1></main>;
+  return <main><Entrance/></main>;
 }
