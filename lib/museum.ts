@@ -12,6 +12,7 @@ export const rooms = [
   ['Beautifully Melancholic', 'beautifully-melancholic'],
   ['Beautiful Chaos', 'beautiful-chaos'],
 ] as const;
-export const imageOf = (p: Painting, small = false) => '/art/' + p.id + (small ? '-sm' : '') + '.webp';
+export const imageOf = (p: Painting, small = false) =>
+  '/art/' + p.id + (small ? '-sm' : '') + '.webp';
 export const plate = (n: number) => String(n).padStart(2, '0');
-export const findPainting = (id: string) => paintings.find(p => p.id === id);
+export const findPainting = (id: string) => paintings.find((p) => p.id === id);

@@ -1,19 +1,117 @@
-.introduction { display:grid; grid-template-columns:1fr 1fr; gap:8vw; align-items:center; padding:clamp(65px,9vw,150px) 8%; background:#161711; }
-.introduction h2,.collections h2 { font:500 clamp(48px,5.3vw,88px)/.94 var(--serif); letter-spacing:-.055em; margin:20px 0; }
-.introduction h2 em { color:#c7b38e; }
-.intro-text { font:14px/1.65 var(--sans); color:#c9c6ba; max-width:310px; }
-.introduction figure img { width:100%; height:auto; display:block; }
-.introduction figcaption { margin-top:12px; display:grid; gap:4px; }
-.introduction figcaption i { font:italic 500 24px/1 var(--serif); }
-.introduction figcaption span,.room-directory small { font:11px/1.4 var(--sans); }
-.collections { background:var(--paper); color:var(--ink); padding:clamp(60px,7vw,112px) 6%; }
-.collection-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:28px; }
-.collection-heading h2 { margin:9px 0 0; }
-.room-directory { display:grid; grid-template-columns:1fr 1fr; column-gap:5vw; }
-.room-directory>a { display:flex; align-items:center; gap:18px; padding:17px 0; border-top:1px solid #34332645; }
-.room-directory img { width:72px; height:72px; object-fit:cover; }
-.room-directory span { display:grid; gap:4px; }
-.room-directory strong { font:500 clamp(25px,2.4vw,37px)/1 var(--serif); letter-spacing:-.035em; }
-.room-directory b { margin-left:auto; font-weight:400; transition:translate .25s; }
-.room-directory a:hover b { translate:3px -3px; }
-@media(max-width:700px) { .introduction{grid-template-columns:1fr;padding:68px 7%;gap:35px}.introduction figure{width:83%;justify-self:end}.room-directory{grid-template-columns:1fr}.room-directory img{height:56px;width:60px}.room-directory>a{padding:13px 0}.collections{padding:60px 6%}.collection-heading{align-items:center}.collection-heading .text-link{max-width:80px} }
+.introduction {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8vw;
+  align-items: center;
+  padding: clamp(65px, 9vw, 150px) 8%;
+  background: #161711;
+}
+.introduction h2,
+.collections h2 {
+  font: 500 clamp(48px, 5.3vw, 88px)/0.94 var(--serif);
+  letter-spacing: -0.055em;
+  margin: 20px 0;
+}
+.introduction h2 em {
+  color: #c7b38e;
+}
+.intro-text {
+  font: 14px/1.65 var(--sans);
+  color: #c9c6ba;
+  max-width: 310px;
+}
+.introduction figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.introduction figcaption {
+  margin-top: 12px;
+  display: grid;
+  gap: 4px;
+}
+.introduction figcaption i {
+  font: italic 500 24px/1 var(--serif);
+}
+.introduction figcaption span,
+.room-directory small {
+  font: 11px/1.4 var(--sans);
+}
+.collections {
+  background: var(--paper);
+  color: var(--ink);
+  padding: clamp(60px, 7vw, 112px) 6%;
+}
+.collection-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+.collection-heading h2 {
+  margin: 9px 0 0;
+}
+.room-directory {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 5vw;
+}
+.room-directory > a {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 17px 0;
+  border-top: 1px solid #34332645;
+}
+.room-directory img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+}
+.room-directory span {
+  display: grid;
+  gap: 4px;
+}
+.room-directory strong {
+  font: 500 clamp(25px, 2.4vw, 37px)/1 var(--serif);
+  letter-spacing: -0.035em;
+}
+.room-directory b {
+  margin-left: auto;
+  font-weight: 400;
+  transition: translate 0.25s;
+}
+.room-directory a:hover b {
+  translate: 3px -3px;
+}
+@media (max-width: 700px) {
+  .introduction {
+    grid-template-columns: 1fr;
+    padding: 68px 7%;
+    gap: 35px;
+  }
+  .introduction figure {
+    width: 83%;
+    justify-self: end;
+  }
+  .room-directory {
+    grid-template-columns: 1fr;
+  }
+  .room-directory img {
+    height: 56px;
+    width: 60px;
+  }
+  .room-directory > a {
+    padding: 13px 0;
+  }
+  .collections {
+    padding: 60px 6%;
+  }
+  .collection-heading {
+    align-items: center;
+  }
+  .collection-heading .text-link {
+    max-width: 80px;
+  }
+}

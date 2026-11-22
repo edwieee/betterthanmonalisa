@@ -4,5 +4,15 @@ import { Introduction, Collections } from '../components/Editorial';
 import { Footer } from '../components/Chrome';
 
 export default function Home() {
-  return <><main><Entrance/><Introduction/><Gallery/><Collections/></main><Footer/></>;
+  return (
+    <>
+      <main>
+        <Entrance />
+        <Introduction />
+        <Gallery />
+        <Collections />
+      </main>
+      <Footer />
+    </>
+  );
 }
