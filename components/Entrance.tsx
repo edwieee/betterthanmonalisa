@@ -29,7 +29,7 @@ export default function Entrance() {
     <h1>Better Than<br/><em>Mona Lisa.</em></h1>
     <p className="subhead">She’s iconic. These deserve your attention too.</p>
     <Link href="#gallery" className="enter-link">Enter the gallery <span aria-hidden="true">→</span></Link></div>
-    <div className="wall-label"><span className="overline">On the wall</span><Link href={'/painting/'+painting.id}>{painting.title}</Link><span>{painting.artist} <i>·</i> {painting.date}</span></div>
+    <div className="wall-label"><span className="overline">On the wall</span><Link href={'/painting/'+painting.id+'?from=entrance'}>{painting.title}</Link><span>{painting.artist} <i>·</i> {painting.date}</span></div>
     <Link href="#about" className="scroll-link"><span className="scroll-line"/>Scroll to explore</Link>
     <div className="wall-pager"><span>{plate(wall + 1)} <i>/</i> 03</span><button aria-label="Previous entrance painting" onClick={()=>setWall((wall+2)%3)}>←</button><button aria-label="Next entrance painting" onClick={()=>setWall((wall+1)%3)}>→</button></div>
   </section>;
