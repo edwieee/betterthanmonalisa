@@ -9,3 +9,11 @@ button { font: inherit; cursor: pointer; }
 a { text-decoration: none; }
 button:focus-visible,a:focus-visible,[tabindex]:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
 ::selection { color: #141410; background: #d8c6a7; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .room-spread { animation: viewing-room-arrival .42s ease-out both; }
+  @keyframes viewing-room-arrival {
+    from { opacity: .25; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
