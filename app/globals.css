@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+:root { color-scheme: dark; --ivory: #f1e9dc; --ink: #161711; --paper: #e8e1d4; --serif: 'Cormorant Garamond', Georgia, serif; --sans: 'DM Sans', Arial, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ink); color: var(--ivory); font-family: var(--sans); }
+h1,h2,h3,p,figure { margin: 0; }
+button,a { color: inherit; }
+button { font: inherit; cursor: pointer; }
+a { text-decoration: none; }
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
+::selection { color: #141410; background: #d8c6a7; }
