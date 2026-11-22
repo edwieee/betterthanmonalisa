@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { imageOf, paintings, plate } from '../lib/museum';
-import type { mountGallery } from '../lib/gallery-scene';
+import type { GalleryPosition, mountGallery } from '../lib/gallery-scene';
 import './gallery.css';
 
 export default function Gallery() {
@@ -14,7 +14,12 @@ export default function Gallery() {
   const [spatial,setSpatial]=useState(false);
   const startX=useRef(0);
   const select=useCallback((i:number)=>{
-    try { sessionStorage.setItem('museum-position',String(i)); } catch {}
+    try {
+      sessionStorage.setItem('museum-position',String(i));
+      const position=api.current?.position();
+      if(position) sessionStorage.setItem('museum-camera',JSON.stringify(position));
+      else sessionStorage.removeItem('museum-camera');
+    } catch {}
     router.push('/painting/'+paintings[i].id+'?from=gallery');
   },[router]);
   useEffect(()=>{
@@ -23,6 +28,11 @@ export default function Gallery() {
     let initial=0;
     try { initial=Math.max(0,Math.min(paintings.length-1,Number(sessionStorage.getItem('museum-position'))||0)); } catch {}
     const preference=matchMedia('(max-width: 680px), (prefers-reduced-motion: reduce)');
+    let saved: GalleryPosition | undefined;
+    try {
+      const position=JSON.parse(sessionStorage.getItem('museum-camera') || 'null');
+      if (Number.isFinite(position?.column) && Number.isFinite(position?.level)) saved=position;
+    } catch {}
     let inRange=false;
     function dispose() { generation++; api.current?.dispose(); api.current=null; setSpatial(false); setHover(null); }
     async function configure() {
@@ -32,7 +42,8 @@ export default function Gallery() {
       try {
         const {mountGallery}=await import('../lib/gallery-scene');
         if(cancelled || generation!==version) return;
-        api.current=mountGallery(element,initial,{select,caption:(h,c)=>{setHover(h);setCentre(c);initial=c;},lost:()=>{if(!cancelled)dispose();}});
+        api.current=mountGallery(element,initial,{select,caption:(h,c)=>{setHover(h);setCentre(c);initial=c;},lost:()=>{if(!cancelled)dispose();}}, saved);
+        saved=undefined;
         setSpatial(true);
       } catch { if(!cancelled)setSpatial(false); }
     }

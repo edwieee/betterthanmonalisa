@@ -6,7 +6,8 @@ type Callbacks = {
   select: (index: number) => void;
   lost: () => void;
 };
-const columns = paintings.length / 3;
+export type GalleryPosition = { column: number; level: number };
+const columns = Math.ceil(paintings.length / 3);
 const rowAt = (index: number) => [0, 1, -1][Math.floor(index / columns)];
 const rowIndex = (height: number) => height > 0.5 ? 1 : height < -0.5 ? 2 : 0;
 const spacing = Math.PI * 2 / columns;
@@ -15,7 +16,7 @@ const rowGap = 2.7;
 const clamp = THREE.MathUtils.clamp;
 const damp = THREE.MathUtils.damp;
 
-export function mountGallery(host: HTMLDivElement, initial: number, callback: Callbacks) {
+export function mountGallery(host: HTMLDivElement, initial: number, callback: Callbacks, saved?: GalleryPosition) {
   const render = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
   render.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   render.setClearColor(0x151611, 0);
@@ -28,8 +29,8 @@ export function mountGallery(host: HTMLDivElement, initial: number, callback: Ca
   const pointer = new THREE.Vector2(4, 4);
   const loader = new THREE.TextureLoader();
   let disposed = false;
-  let target = initial % columns, travel = target;
-  let aimY = rowAt(initial), level = aimY;
+  let target = clamp(saved?.column ?? initial % columns, 0, columns - 1), travel = target;
+  let aimY = clamp(saved?.level ?? rowAt(initial), -1, 1), level = aimY;
   let lastCentre = -1, lastHover: number | null = null;
   let press: { id: number; x: number; y: number; lastX: number; time: number; target: number; level: number } | null = null;
   let dragged = false, velocity = 0;
@@ -94,7 +95,7 @@ export function mountGallery(host: HTMLDivElement, initial: number, callback: Ca
           texture.colorSpace = THREE.SRGBColorSpace;
           mesh.material.map = texture;
           mesh.material.needsUpdate = true;
-        }, undefined, callback.lost);
+        }, undefined, () => { if (!disposed) callback.lost(); });
       }
       const boost = damp(mesh.userData.emphasis, lastHover === i && !dragged ? 1 : 0, 10, dt);
       mesh.userData.emphasis = boost;
@@ -115,7 +116,7 @@ export function mountGallery(host: HTMLDivElement, initial: number, callback: Ca
     ray.setFromCamera(pointer, camera);
     const hit = !press && focus === null && overCanvas ? ray.intersectObjects(meshes, false).find(h => h.object.visible) : undefined;
     const hover = hit ? hit.object.userData.index as number : null;
-    const centre = rowIndex(level) * columns + Math.round(travel);
+    const centre = Math.min(paintings.length - 1, rowIndex(level) * columns + Math.round(travel));
     if (lastCentre !== centre || lastHover !== hover) {
       lastCentre = centre; lastHover = hover;
       callback.caption(hover, centre);
@@ -181,6 +182,7 @@ export function mountGallery(host: HTMLDivElement, initial: number, callback: Ca
   canvas.addEventListener('pointerleave',leave);
   canvas.addEventListener('wheel',wheel,{passive:false});
   return {
+    position: (): GalleryPosition => ({ column: travel, level }),
     go(index: number) { velocity=0; target=index%columns; aimY=rowAt(index); pointer.set(4,4); },
     open,
     dispose() {
