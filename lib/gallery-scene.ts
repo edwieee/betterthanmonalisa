@@ -51,10 +51,11 @@ function fitLabel(ctx: CanvasRenderingContext2D, label: string, width: number) {
 }
 
 function drawTile(ctx: CanvasRenderingContext2D, image: HTMLImageElement, work: Painting) {
-  const fit = Math.min(370 / work.width, 370 / work.height);
+  const fit = 414 / Math.max(work.width, work.height);
   const w = work.width * fit,
     h = work.height * fit;
-  ctx.drawImage(image, (512 - w) / 2, (512 - h) / 2, w, h);
+  // Centre the reproduction between the header baseline and the collection label.
+  ctx.drawImage(image, (512 - w) / 2, 249 - h / 2, w, h);
   ctx.fillStyle = '#626262';
   ctx.fillRect(0, 0, 1.2, 512);
   ctx.fillStyle = '#eee';

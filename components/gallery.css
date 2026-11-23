@@ -199,8 +199,10 @@
   outline-offset: -3px;
 }
 .gallery-plates img {
-  width: 100%;
-  height: clamp(100px, 14vw, 230px);
+  justify-self: center;
+  width: min(112%, calc(100% + 20px));
+  max-width: none;
+  height: clamp(112px, 15.68vw, 257.6px);
   object-fit: contain;
 }
 .gallery-plates small {
