@@ -62,7 +62,7 @@ export default function Entrance() {
           <em>Mona Lisa.</em>
         </h1>
         <p className="subhead">She’s iconic. These deserve your attention too.</p>
-        <Link href="#gallery" className="enter-link">
+        <Link href="/gallery" className="enter-link">
           Enter the gallery <span aria-hidden="true">→</span>
         </Link>
       </div>

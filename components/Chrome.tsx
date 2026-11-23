@@ -30,7 +30,7 @@ export function Header() {
     <header className="mast">
       <Wordmark />
       <nav aria-label="Primary">
-        <Link href="/#gallery">Gallery</Link>
+        <Link href="/gallery">Gallery</Link>
         <Link href="/#collections">Collections</Link>
         <Link href="/#about">About</Link>
       </nav>

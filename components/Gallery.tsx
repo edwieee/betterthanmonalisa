@@ -115,11 +115,11 @@ export default function Gallery() {
     else select(active);
   }
   return (
-    <section id="gallery" className="exhibition" aria-labelledby="gallery-title">
+    <main id="gallery" className="exhibition" aria-labelledby="gallery-title">
       <div className="exhibition-head">
         <div>
           <p className="overline">Permanent exhibition</p>
-          <h2 id="gallery-title">The gallery.</h2>
+          <h1 id="gallery-title">The gallery.</h1>
         </div>
         <Link href="/collection/all" className="text-link">
           View art index ↗
@@ -189,9 +189,9 @@ export default function Gallery() {
           </button>
         </div>
       </div>
-      <Link className="gallery-exit text-link" href="#collections">
+      <Link className="gallery-exit text-link" href="/#collections">
         Continue to collections ↓
       </Link>
-    </section>
+    </main>
   );
 }

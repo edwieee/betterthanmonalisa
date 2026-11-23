@@ -18,7 +18,7 @@ export default function ViewingRoom({ work }: { work: Painting }) {
       ? '/collection/' + from
       : from === 'entrance'
         ? '/#entrance'
-        : '/#gallery';
+        : '/gallery';
   const neighbor = (offset: number) =>
     '/painting/' +
     list[(position + offset + list.length) % list.length].id +

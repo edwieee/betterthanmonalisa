@@ -35,6 +35,11 @@ button {
 a {
   text-decoration: none;
 }
+.text-link {
+  font: 12px var(--sans);
+  padding-bottom: 4px;
+  border-bottom: 1px solid currentColor;
+}
 button:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
