@@ -1,308 +1,349 @@
 import * as THREE from 'three';
-import { imageOf, paintings } from '../lib/museum';
+import { imageOf, rooms, type Painting } from './museum';
 
+export type GalleryPosition = { x: number; y: number };
 type Callbacks = {
-  caption: (hover: number | null, centre: number) => void;
-  select: (index: number) => void;
+  open: (index: number, position: GalleryPosition) => void;
+  caption: (index: number | null) => void;
+  ready: () => void;
   lost: () => void;
 };
-export type GalleryPosition = { column: number; level: number };
-const columns = Math.ceil(paintings.length / 3);
-const rowAt = (index: number) => [0, 1, -1][Math.floor(index / columns)];
-const rowIndex = (height: number) => (height > 0.5 ? 1 : height < -0.5 ? 2 : 0);
-const spacing = (Math.PI * 2) / columns;
-const radius = 10;
-const rowGap = 2.7;
-const clamp = THREE.MathUtils.clamp;
-const damp = THREE.MathUtils.damp;
+
+const vertexShader = `
+  varying vec2 screen;
+  void main() {
+    screen = vec2(position.x, -position.y);
+    gl_Position = vec4(position.xy, 0., 1.);
+  }
+`;
+
+// The lens acts on the whole printed wall, including its type and column rules.
+const fragmentShader = `
+  uniform sampler2D atlas;
+  uniform vec2 layoutSize, halfView, origin;
+  uniform float count, zoom, bend;
+  uniform vec2 activeCell;
+  varying vec2 screen;
+  void main() {
+    float r2 = dot(screen, screen);
+    vec2 wall = origin + screen * halfView * zoom / (1. + bend * r2);
+    vec2 cell = floor(wall);
+    float index = mod(cell.x + cell.y * layoutSize.x, count);
+    vec2 tile = vec2(mod(index, layoutSize.x), floor(index / layoutSize.x));
+    vec2 uv = (tile + clamp(fract(wall), .0015, .9985)) / layoutSize;
+    vec4 print = texture2D(atlas, uv);
+    vec3 paper = vec3(0.);
+    if (all(equal(cell, activeCell))) {
+      vec3 pigment = texture2D(atlas, (tile + vec2(.5)) / layoutSize).rgb;
+      paper = mix(vec3(.13), pigment, .8);
+    }
+    vec3 ink = mix(paper, print.rgb, print.a);
+    float shade = 1. - .84 * smoothstep(.28, 1.9, r2);
+    gl_FragColor = vec4(ink * shade, 1.);
+  }
+`;
+
+function fitLabel(ctx: CanvasRenderingContext2D, label: string, width: number) {
+  if (ctx.measureText(label).width <= width) return label;
+  let end = label.length;
+  while (end && ctx.measureText(label.slice(0, end) + '…').width > width) end--;
+  return label.slice(0, end).trimEnd() + '…';
+}
+
+function drawTile(ctx: CanvasRenderingContext2D, image: HTMLImageElement, work: Painting) {
+  const fit = Math.min(370 / work.width, 370 / work.height);
+  const w = work.width * fit,
+    h = work.height * fit;
+  ctx.drawImage(image, (512 - w) / 2, (512 - h) / 2, w, h);
+  ctx.fillStyle = '#626262';
+  ctx.fillRect(0, 0, 1.2, 512);
+  ctx.fillStyle = '#eee';
+  ctx.font = '500 18px Arial';
+  ctx.fillText(fitLabel(ctx, work.artist, 208), 20, 35);
+  ctx.textAlign = 'right';
+  ctx.font = '14px monospace';
+  ctx.fillText(fitLabel(ctx, work.title.toUpperCase(), 241), 492, 35);
+  ctx.fillText(work.date.toUpperCase(), 492, 483, 95);
+  ctx.textAlign = 'left';
+  ctx.fillText(work.period.toUpperCase(), 20, 483, 110);
+  const label = rooms[work.category][0].toUpperCase();
+  const labelWidth = Math.min(230, ctx.measureText(label).width) + 24;
+  ctx.fillStyle = '#252525';
+  ctx.beginPath();
+  ctx.roundRect(140, 463, labelWidth, 29, 15);
+  ctx.fill();
+  ctx.fillStyle = '#eee';
+  ctx.fillText(label, 152, 483, 230);
+}
 
 export function mountGallery(
   host: HTMLDivElement,
-  initial: number,
-  callback: Callbacks,
-  saved?: GalleryPosition,
+  works: Painting[],
+  start: GalleryPosition,
+  callbacks: Callbacks,
 ) {
-  const render = new THREE.WebGLRenderer({
-    alpha: true,
-    antialias: true,
-    powerPreference: 'low-power',
-  });
-  render.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-  render.setClearColor(0x151611, 0);
-  const canvas = render.domElement;
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
+  const canvas = renderer.domElement;
   canvas.setAttribute('aria-hidden', 'true');
   host.appendChild(canvas);
-  const world = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 75);
-  const ray = new THREE.Raycaster();
-  const pointer = new THREE.Vector2(4, 4);
-  const loader = new THREE.TextureLoader();
-  let disposed = false;
-  let target = clamp(saved?.column ?? initial % columns, 0, columns - 1),
-    travel = target;
-  let aimY = clamp(saved?.level ?? rowAt(initial), -1, 1),
-    level = aimY;
-  let lastCentre = -1,
-    lastHover: number | null = null;
+  const columns = Math.ceil(Math.sqrt(works.length));
+  const rows = Math.ceil(works.length / columns);
+  const sheet = document.createElement('canvas');
+  const size = Math.min(512, Math.floor(renderer.capabilities.maxTextureSize / columns));
+  sheet.width = columns * size;
+  sheet.height = rows * size;
+  const ctx = sheet.getContext('2d')!;
+  const texture = new THREE.CanvasTexture(sheet);
+  texture.flipY = false;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  const origin = new THREE.Vector2(start.x, start.y);
+  const view = new THREE.Vector2();
+  const ambient = new THREE.Vector2(),
+    cursor = new THREE.Vector2();
+  const velocity = new THREE.Vector2();
+  const uniforms = {
+    atlas: { value: texture },
+    layoutSize: { value: new THREE.Vector2(columns, rows) },
+    halfView: { value: view },
+    origin: { value: origin.clone() },
+    count: { value: works.length },
+    zoom: { value: 1 },
+    bend: { value: 0 },
+    activeCell: { value: new THREE.Vector2(1e9, 1e9) },
+  };
+  const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader });
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  const scene = new THREE.Scene();
+  scene.add(new THREE.Mesh(geometry, material));
+  const camera = new THREE.Camera();
+  let disposed = false,
+    ready = false,
+    frame = 0,
+    previous = 0,
+    cellSize = 1;
+  let hover: number | null = null,
+    pointing = false,
+    keyboard = false;
   let press: {
     id: number;
     x: number;
     y: number;
     lastX: number;
+    lastY: number;
     time: number;
-    target: number;
-    level: number;
+    drag: boolean;
   } | null = null;
-  let dragged = false,
-    velocity = 0;
-  let focus: number | null = null,
-    focusTime = 0;
-  let previousTime = 0,
-    frame = 0,
-    visible = true;
-  const meshes = paintings.map((p, index) => {
-    const aspect = p.width / p.height;
-    const width = Math.min(3.75, 2.13 * aspect),
-      height = width / aspect;
-    const geo = new THREE.PlaneGeometry(width, height, 20, 8);
-    const verts = geo.attributes.position;
-    for (let i = 0; i < verts.count; i++) {
-      const angle = verts.getX(i) / radius;
-      verts.setXYZ(
-        i,
-        Math.sin(angle) * radius,
-        verts.getY(i),
-        (Math.cos(angle) - 1) * radius - 0.014 * verts.getY(i) ** 2,
-      );
-    }
-    geo.computeBoundingSphere();
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const panel = new THREE.Mesh(geo, mat);
-    panel.userData.index = index;
-    panel.userData.emphasis = 0;
-    world.add(panel);
-    return panel;
-  });
+
   function resize() {
-    const { width, height } = host.getBoundingClientRect();
-    if (!width || !height) return;
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    render.setSize(width, height, false);
+    const { clientWidth: w, clientHeight: h } = host;
+    cellSize = w <= 700 ? Math.max(162, Math.min(w * 0.6, h * 0.55)) : Math.min(w / 5, h / 2.7);
+    view.set(w / (2 * cellSize), h / (2 * cellSize));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.setSize(w, h, false);
+    wake();
   }
-  const observer = new ResizeObserver(resize);
-  observer.observe(host);
-  resize();
-  const selectedPos = new THREE.Vector3();
+  const cell = new THREE.Vector2();
+  function indexAt(x: number, y: number) {
+    const lens = uniforms.zoom.value / (1 + uniforms.bend.value * (x * x + y * y));
+    const centre = uniforms.origin.value;
+    const col = Math.floor(centre.x + x * view.x * lens);
+    const row = Math.floor(centre.y + y * view.y * lens);
+    cell.set(col, row);
+    return THREE.MathUtils.euclideanModulo(col + row * columns, works.length);
+  }
   function tick(time: number) {
     frame = 0;
-    if (disposed || !visible) return;
-    const dt = Math.min((time - (previousTime || time)) / 1000, 0.05);
-    previousTime = time;
-    if (!press && focus === null) {
-      target = clamp(target + velocity * dt, 0, columns - 1);
-      velocity *= Math.exp(-6.5 * dt);
+    if (!ready || disposed || document.hidden) return;
+    const dt = Math.min((time - previous) / 1000, 0.05);
+    previous = time;
+    if (!press) {
+      origin.addScaledVector(velocity, dt);
+      velocity.multiplyScalar(Math.exp(-6 * dt));
     }
-    travel = damp(travel, target, 7.8, dt);
-    level = damp(level, aimY, 8, dt);
-    const overCanvas = Math.abs(pointer.x) <= 1 && Math.abs(pointer.y) <= 1;
-    camera.position.set(
-      damp(camera.position.x, overCanvas ? pointer.x * 0.18 : 0, 5, dt),
-      damp(camera.position.y, overCanvas ? pointer.y * 0.14 : 0, 5, dt),
-      damp(camera.position.z || 7.4, press && dragged ? 8.15 : 7.4, 6, dt),
-    );
-    camera.updateMatrixWorld();
-    if (focus !== null) focusTime = Math.min(1, focusTime + dt / 0.55);
-    const mix = 1 - Math.pow(1 - focusTime, 3);
-    meshes.forEach((mesh, i) => {
-      const row = rowAt(i);
-      const angle = ((i % columns) - travel) * spacing + row * 0.065;
-      const cos = Math.cos(angle),
-        sin = Math.sin(angle);
-      mesh.visible = cos > 0.18 || focus === i;
-      if (!mesh.visible) return;
-      if (!mesh.userData.requested) {
-        mesh.userData.requested = true;
-        loader.load(
-          imageOf(paintings[i], true),
-          (texture) => {
-            if (disposed) {
-              texture.dispose();
-              return;
-            }
-            texture.colorSpace = THREE.SRGBColorSpace;
-            mesh.material.map = texture;
-            mesh.material.needsUpdate = true;
-          },
-          undefined,
-          () => {
-            if (!disposed) callback.lost();
-          },
-        );
-      }
-      const boost = damp(mesh.userData.emphasis, lastHover === i && !dragged ? 1 : 0, 10, dt);
-      mesh.userData.emphasis = boost;
-      mesh.rotation.y = angle;
-      mesh.rotation.x = -row * 0.09;
-      mesh.position.set(
-        radius * sin,
-        (row - level) * rowGap,
-        radius * (cos - 1) - Math.abs(row) * 0.38 + boost * 0.32,
-      );
-      mesh.scale.setScalar(1 + boost * 0.045);
-      const light =
-        (lastHover !== null && lastHover !== i ? 0.69 : 1) * (0.63 + 0.37 * Math.max(0, cos));
-      mesh.material.color.setScalar(
-        damp(mesh.material.color.r, mesh.material.map ? light : 0.055, 9, dt),
-      );
-      if (focus === i) {
-        selectedPos.set(0, 0, 2.8);
-        mesh.position.lerp(selectedPos, mix);
-        mesh.rotation.y = Math.atan2(sin, cos) * (1 - mix);
-        mesh.rotation.x *= 1 - mix;
-      } else if (focus !== null) mesh.material.color.multiplyScalar(1 - mix * 0.8);
-    });
-    world.updateMatrixWorld();
-    ray.setFromCamera(pointer, camera);
-    const hit =
-      !press && focus === null && overCanvas
-        ? ray.intersectObjects(meshes, false).find((h) => h.object.visible)
-        : undefined;
-    const hover = hit ? (hit.object.userData.index as number) : null;
-    const centre = Math.min(paintings.length - 1, rowIndex(level) * columns + Math.round(travel));
-    if (lastCentre !== centre || lastHover !== hover) {
-      lastCentre = centre;
-      lastHover = hover;
-      callback.caption(hover, centre);
+    const blend = 1 - Math.exp(-8 * dt);
+    ambient.lerp(cursor, blend);
+    const zoom = press?.drag ? 1.18 : 1;
+    uniforms.zoom.value += (zoom - uniforms.zoom.value) * blend;
+    const bend = host.clientWidth <= 700 ? 0.012 : 0.22;
+    uniforms.bend.value += (bend - uniforms.bend.value) * blend;
+    uniforms.origin.value.copy(origin).addScaledVector(ambient, 0.075);
+    const next = keyboard
+      ? indexAt(0, 0)
+      : pointing && !press?.drag
+        ? indexAt(cursor.x, cursor.y)
+        : null;
+    if (next === null) uniforms.activeCell.value.set(1e9, 1e9);
+    else uniforms.activeCell.value.copy(cell);
+    renderer.render(scene, camera);
+    if (next !== hover) {
+      hover = next;
+      callbacks.caption(next);
     }
-    canvas.style.cursor = press ? 'grabbing' : hover !== null ? 'pointer' : 'grab';
-    render.render(world, camera);
-    if (focus !== null && focusTime >= 1) {
-      callback.select(focus);
-      return;
-    }
-    frame = requestAnimationFrame(tick);
+    if (
+      velocity.lengthSq() > 0.00001 ||
+      ambient.distanceToSquared(cursor) > 0.00001 ||
+      Math.abs(zoom - uniforms.zoom.value) > 0.0001 ||
+      Math.abs(bend - uniforms.bend.value) > 0.0001
+    )
+      wake();
   }
-  const visibility = new IntersectionObserver(([entry]) => {
-    visible = entry.isIntersecting;
-    if (visible && !frame) {
-      previousTime = 0;
-      frame = requestAnimationFrame(tick);
-    }
-  });
-  visibility.observe(host);
+  function wake() {
+    if (ready && !disposed && !frame && !document.hidden) frame = requestAnimationFrame(tick);
+  }
   function point(e: PointerEvent) {
     const rect = canvas.getBoundingClientRect();
-    pointer.set(
-      (2 * (e.clientX - rect.left)) / rect.width - 1,
-      1 - (2 * (e.clientY - rect.top)) / rect.height,
+    cursor.set(
+      ((e.clientX - rect.left) * 2) / rect.width - 1,
+      ((e.clientY - rect.top) * 2) / rect.height - 1,
     );
+    keyboard = false;
+    pointing = e.pointerType !== 'touch';
   }
   function down(e: PointerEvent) {
-    if (focus !== null || e.button !== 0 || press) return;
+    if (press || e.button !== 0) return;
     point(e);
-    dragged = false;
-    velocity = 0;
+    host.focus({ preventScroll: true });
+    canvas.setPointerCapture(e.pointerId);
     press = {
       id: e.pointerId,
       x: e.clientX,
       y: e.clientY,
       lastX: e.clientX,
+      lastY: e.clientY,
       time: e.timeStamp,
-      target,
-      level: aimY,
+      drag: false,
     };
-    canvas.setPointerCapture(e.pointerId);
+    velocity.set(0, 0);
+    wake();
   }
   function move(e: PointerEvent) {
+    if (press && e.pointerId !== press.id) return;
     point(e);
-    if (!press || e.pointerId !== press.id) return;
-    const dx = e.clientX - press.x,
-      dy = e.clientY - press.y;
-    if (Math.hypot(dx, dy) < 5 && !dragged) return;
-    dragged = true;
-    const unit = canvas.clientWidth * 0.27;
-    target = clamp(press.target - dx / unit, 0, columns - 1);
-    aimY = clamp(press.level + dy / (canvas.clientHeight * 0.37), -1, 1);
-    velocity = clamp(
-      -(e.clientX - press.lastX) / unit / Math.max(0.012, (e.timeStamp - press.time) / 1000),
-      -6,
-      6,
-    );
-    press.lastX = e.clientX;
-    press.time = e.timeStamp;
-  }
-  function open(index: number) {
-    if (focus === null) {
-      focus = index;
-      velocity = 0;
+    if (press) {
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5) press.drag = true;
+      if (press.drag) {
+        const dx = (press.lastX - e.clientX) / cellSize,
+          dy = (press.lastY - e.clientY) / cellSize;
+        const dt = Math.max(0.008, (e.timeStamp - press.time) / 1000);
+        origin.x += dx;
+        origin.y += dy;
+        velocity.set(THREE.MathUtils.clamp(dx / dt, -8, 8), THREE.MathUtils.clamp(dy / dt, -8, 8));
+        canvas.style.cursor = 'grabbing';
+      }
+      press.lastX = e.clientX;
+      press.lastY = e.clientY;
+      press.time = e.timeStamp;
     }
+    wake();
   }
-  function up(e: PointerEvent) {
-    if (!press || e.pointerId !== press.id) return;
-    if (!dragged && e.type !== 'pointercancel') {
-      point(e);
-      ray.setFromCamera(pointer, camera);
-      const hit = ray.intersectObjects(meshes, false).find((h) => h.object.visible);
-      if (hit) open(hit.object.userData.index);
-    }
-    if (e.timeStamp - press.time > 110) velocity = 0;
+  function end(e: PointerEvent) {
+    if (!press || press.id !== e.pointerId) return;
+    const tap = e.type === 'pointerup' && !press.drag;
+    if (!press.drag || e.timeStamp - press.time > 90 || e.type !== 'pointerup') velocity.set(0, 0);
     press = null;
-    dragged = false;
-    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    canvas.style.cursor = '';
+    if (tap) {
+      point(e);
+      callbacks.open(indexAt(cursor.x, cursor.y), { x: origin.x, y: origin.y });
+    }
+    if (!pointing) cursor.set(0, 0);
+    wake();
   }
   function leave() {
-    if (!press) pointer.set(4, 4);
+    if (press) return;
+    pointing = false;
+    cursor.set(0, 0);
+    wake();
   }
   function wheel(e: WheelEvent) {
-    if (e.ctrlKey || focus !== null) return;
-    const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    const step =
-      raw * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1) * 0.0024;
-    if ((target <= 0 && step < 0) || (target >= columns - 1 && step > 0)) return;
+    if (e.ctrlKey) return;
     e.preventDefault();
-    velocity = 0;
-    target = clamp(target + step, 0, columns - 1);
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? host.clientHeight : 1;
+    origin.x += (e.deltaX * unit) / cellSize;
+    origin.y += (e.deltaY * unit) / cellSize;
+    velocity.set(0, 0);
+    keyboard = false;
+    wake();
   }
-  function contextLost(e: Event) {
+  function key(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      callbacks.open(indexAt(0, 0), { x: origin.x, y: origin.y });
+      return;
+    }
+    const directions: Record<string, number[]> = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    };
+    const direction = directions[e.key];
+    if (!direction) return;
     e.preventDefault();
-    callback.lost();
+    origin.set(
+      Math.floor(origin.x) + 0.5 + direction[0],
+      Math.floor(origin.y) + 0.5 + direction[1],
+    );
+    velocity.set(0, 0);
+    cursor.set(0, 0);
+    ambient.set(0, 0);
+    uniforms.origin.value.copy(origin);
+    keyboard = true;
+    hover = indexAt(0, 0);
+    callbacks.caption(hover);
+    wake();
   }
-  canvas.addEventListener('webglcontextlost', contextLost);
-  canvas.addEventListener('pointerdown', down);
-  canvas.addEventListener('pointermove', move);
-  canvas.addEventListener('pointerup', up);
-  canvas.addEventListener('pointercancel', up);
-  canvas.addEventListener('pointerleave', leave);
-  canvas.addEventListener('wheel', wheel, { passive: false });
-  return {
-    position: (): GalleryPosition => ({ column: travel, level }),
-    go(index: number) {
-      velocity = 0;
-      target = index % columns;
-      aimY = rowAt(index);
-      pointer.set(4, 4);
-    },
-    open,
-    dispose() {
-      disposed = true;
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      visibility.disconnect();
-      canvas.removeEventListener('webglcontextlost', contextLost);
-      canvas.removeEventListener('wheel', wheel);
-      canvas.removeEventListener('pointerdown', down);
-      canvas.removeEventListener('pointermove', move);
-      canvas.removeEventListener('pointerup', up);
-      canvas.removeEventListener('pointercancel', up);
-      canvas.removeEventListener('pointerleave', leave);
-      meshes.forEach((m) => {
-        m.geometry.dispose();
-        m.material.map?.dispose();
-        m.material.dispose();
-      });
-      render.dispose();
-      canvas.remove();
-    },
+  const events = new AbortController();
+  const options = { signal: events.signal };
+  canvas.addEventListener('pointerdown', down, options);
+  canvas.addEventListener('pointermove', move, options);
+  canvas.addEventListener('pointerup', end, options);
+  canvas.addEventListener('pointercancel', end, options);
+  canvas.addEventListener('lostpointercapture', end, options);
+  canvas.addEventListener('pointerleave', leave, options);
+  canvas.addEventListener('wheel', wheel, { ...options, passive: false });
+  canvas.addEventListener('webglcontextlost', callbacks.lost, options);
+  host.addEventListener('keydown', key, options);
+  document.addEventListener('visibilitychange', wake, options);
+  const observer = new ResizeObserver(resize);
+  observer.observe(host);
+  resize();
+  Promise.all(
+    works.map(async (work, i) => {
+      const image = new Image();
+      image.src = imageOf(work, true);
+      await image.decode();
+      if (disposed) return;
+      ctx.save();
+      ctx.translate((i % columns) * size, Math.floor(i / columns) * size);
+      ctx.scale(size / 512, size / 512);
+      drawTile(ctx, image, work);
+      ctx.restore();
+    }),
+  )
+    .then(() => {
+      if (disposed) return;
+      texture.needsUpdate = true;
+      ready = true;
+      tick(performance.now());
+      callbacks.ready();
+    })
+    .catch(() => {
+      if (!disposed) callbacks.lost();
+    });
+
+  return () => {
+    disposed = true;
+    cancelAnimationFrame(frame);
+    events.abort();
+    observer.disconnect();
+    texture.dispose();
+    material.dispose();
+    geometry.dispose();
+    renderer.dispose();
+    renderer.forceContextLoss();
+    canvas.remove();
+    sheet.width = sheet.height = 0;
   };
 }

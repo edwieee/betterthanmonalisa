@@ -1,197 +1,228 @@
 'use client';
+
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { imageOf, paintings, plate } from '../lib/museum';
-import type { GalleryPosition, mountGallery } from '../lib/gallery-scene';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Arch } from './Chrome';
+import { imageOf, paintings, rooms } from '../lib/museum';
+import type { GalleryPosition } from '../lib/gallery-scene';
 import './gallery.css';
+
+type Visit = { category: number; position: GalleryPosition; id?: string };
+const entry: Visit = { category: -1, position: { x: 1.07, y: 1.02 } };
+
+const subscribe = () => () => {};
+function savedVisit() {
+  try {
+    return sessionStorage.getItem('gallery-visit') ?? '';
+  } catch {
+    return '';
+  }
+}
+function remember(visit: Visit) {
+  try {
+    sessionStorage.setItem('gallery-visit', JSON.stringify(visit));
+  } catch {}
+}
+
+function readVisit(value: string): Visit {
+  try {
+    const saved = JSON.parse(value || 'null');
+    if (
+      Number.isInteger(saved?.category) &&
+      saved.category >= -1 &&
+      saved.category < rooms.length &&
+      Number.isFinite(saved.position?.x) &&
+      Number.isFinite(saved.position.y)
+    )
+      return saved;
+  } catch {}
+  return entry;
+}
 
 export default function Gallery() {
   const router = useRouter();
   const host = useRef<HTMLDivElement>(null);
-  const api = useRef<ReturnType<typeof mountGallery> | null>(null);
-  const [centre, setCentre] = useState(0),
-    [hover, setHover] = useState<number | null>(null);
+  const plates = useRef<HTMLDivElement>(null);
+  const filter = useRef<HTMLDialogElement>(null);
+  const saved = useSyncExternalStore(subscribe, savedVisit, () => '');
+  const [selection, setSelection] = useState<Visit | null>(null);
+  const visit = useMemo(() => selection ?? readVisit(saved), [selection, saved]);
   const [spatial, setSpatial] = useState(false);
-  const startX = useRef(0);
-  const select = useCallback(
-    (i: number) => {
-      try {
-        sessionStorage.setItem('museum-position', String(i));
-        const position = api.current?.position();
-        if (position) sessionStorage.setItem('museum-camera', JSON.stringify(position));
-        else sessionStorage.removeItem('museum-camera');
-      } catch {}
-      router.push('/painting/' + paintings[i].id + '?from=gallery');
-    },
-    [router],
+  const [caption, setCaption] = useState<number | null>(null);
+  const category = visit.category;
+  const works = useMemo(
+    () => (category === -1 ? paintings : paintings.filter((p) => p.category === category)),
+    [category],
   );
+  const open = useCallback(
+    (index: number, position: GalleryPosition) => {
+      const work = works[index];
+      remember({ category, position, id: work.id });
+      router.push('/painting/' + work.id + '?from=gallery');
+    },
+    [works, category, router],
+  );
+
   useEffect(() => {
-    const element = host.current!;
-    let cancelled = false,
-      generation = 0;
-    let initial = 0;
-    try {
-      initial = Math.max(
-        0,
-        Math.min(paintings.length - 1, Number(sessionStorage.getItem('museum-position')) || 0),
-      );
-    } catch {}
-    const preference = matchMedia('(max-width: 680px), (prefers-reduced-motion: reduce)');
-    let saved: GalleryPosition | undefined;
-    try {
-      const position = JSON.parse(sessionStorage.getItem('museum-camera') || 'null');
-      if (Number.isFinite(position?.column) && Number.isFinite(position?.level)) saved = position;
-    } catch {}
-    let inRange = false;
-    function dispose() {
-      generation++;
-      api.current?.dispose();
-      api.current = null;
+    if (!spatial && visit.id) {
+      plates.current
+        ?.querySelector<HTMLElement>('[data-id="' + CSS.escape(visit.id) + '"]')
+        ?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+  }, [visit, spatial]);
+
+  useEffect(() => {
+    if (!host.current) return;
+    const element = host.current;
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    let dispose: (() => void) | undefined;
+    let generation = 0;
+    function fallback() {
+      dispose?.();
+      dispose = undefined;
       setSpatial(false);
-      setHover(null);
+      setCaption(null);
     }
     async function configure() {
-      dispose();
-      setCentre(initial);
-      if (preference.matches || !inRange) return;
-      const version = generation;
+      const version = ++generation;
+      fallback();
+      if (motion.matches) return;
       try {
         const { mountGallery } = await import('../lib/gallery-scene');
-        if (cancelled || generation !== version) return;
-        api.current = mountGallery(
-          element,
-          initial,
-          {
-            select,
-            caption: (h, c) => {
-              setHover(h);
-              setCentre(c);
-              initial = c;
-            },
-            lost: () => {
-              if (!cancelled) dispose();
-            },
-          },
-          saved,
-        );
-        saved = undefined;
-        setSpatial(true);
+        if (generation !== version) return;
+        dispose = mountGallery(element, works, visit.position, {
+          open,
+          caption: setCaption,
+          ready: () => setSpatial(true),
+          lost: fallback,
+        });
       } catch {
-        if (!cancelled) setSpatial(false);
+        fallback();
       }
     }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !inRange) {
-          inRange = true;
-          void configure();
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '250px' },
-    );
-    observer.observe(element);
-    preference.addEventListener('change', configure);
+    void configure();
+    motion.addEventListener('change', configure);
     return () => {
-      cancelled = true;
       generation++;
-      observer.disconnect();
-      preference.removeEventListener('change', configure);
-      api.current?.dispose();
-      api.current = null;
+      motion.removeEventListener('change', configure);
+      dispose?.();
     };
-  }, [select]);
-  const active = hover ?? centre,
-    work = paintings[active];
-  function step(d: number) {
-    const i = (centre + d + paintings.length) % paintings.length;
-    setHover(null);
-    setCentre(i);
-    api.current?.go(i);
+  }, [visit, works, open]);
+
+  function choose(next: number) {
+    filter.current?.close();
+    if (next === category) return;
+    setSpatial(false);
+    setCaption(null);
+    setSelection({ category: next, position: entry.position });
   }
-  function open() {
-    if (api.current) api.current.open(active);
-    else select(active);
-  }
+  const listHref = '/collection/' + (category < 0 ? 'all' : rooms[category][1]);
   return (
-    <main id="gallery" className="exhibition" aria-labelledby="gallery-title">
-      <div className="exhibition-head">
-        <div>
-          <p className="overline">Permanent exhibition</p>
-          <h1 id="gallery-title">The gallery.</h1>
+    <main className="exhibition" aria-labelledby="gallery-title">
+      <h1 className="sr-only" id="gallery-title">
+        Painting gallery
+      </h1>
+      <div
+        className="scene-host"
+        ref={host}
+        tabIndex={spatial ? 0 : -1}
+        role="region"
+        aria-hidden={!spatial}
+        aria-label="Painting grid. Drag or use the arrow keys to explore. Press Enter to view the centre painting."
+      />
+      {!spatial && (
+        <div className="gallery-plates" aria-label="Paintings" ref={plates}>
+          {works.map((p, i) => (
+            <Link
+              key={p.id}
+              data-id={p.id}
+              href={'/painting/' + p.id + '?from=gallery'}
+              onClick={() => {
+                const columns = Math.ceil(Math.sqrt(works.length));
+                remember({
+                  category,
+                  id: p.id,
+                  position: { x: (i % columns) + 0.5, y: Math.floor(i / columns) + 0.5 },
+                });
+              }}
+            >
+              <span>{p.artist}</span>
+              <img src={imageOf(p, true)} alt={p.title} loading={i < 10 ? 'eager' : 'lazy'} />
+              <small>
+                {p.title} · {p.date}
+              </small>
+            </Link>
+          ))}
         </div>
-        <Link href="/collection/all" className="text-link">
-          View art index ↗
+      )}
+      <header className="gallery-head">
+        <Link className="gallery-mark" href="/" aria-label="Museum entrance">
+          <Arch />
+        </Link>
+        <span className="gallery-instruction">
+          {spatial ? 'Drag to explore' : 'Scroll to explore'}
+        </span>
+        <span className="gallery-name">
+          Better Than Mona Lisa
+          <br />
+          Independent digital museum
+        </span>
+        <span className="gallery-count">
+          {works.length} paintings
+          <br />
+          {category < 0 ? 'Permanent exhibition' : rooms[category][0]}
+        </span>
+        <Link href="/" className="gallery-exit">
+          Exit gallery
+        </Link>
+      </header>
+      <div className="view-switch" aria-label="Gallery views">
+        <span aria-label="Grid view" aria-current="page">
+          <i className="grid-icon" />
+        </span>
+        <Link href={listHref} aria-label="Browse art index">
+          <i className="list-icon" />
         </Link>
       </div>
-      <div
-        className="exhibition-stage"
-        tabIndex={0}
-        role="region"
-        aria-label="Painting gallery. Use left and right arrows to browse and Enter to view a painting."
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return;
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            e.preventDefault();
-            step(e.key === 'ArrowRight' ? 1 : -1);
-          }
-          if (e.key === 'Enter') open();
+      <nav className="gallery-dock" aria-label="Museum">
+        <span aria-current="page">Gallery</span>
+        <Link href="/#collections">Collections</Link>
+        <Link href="/#about">About</Link>
+      </nav>
+      <button
+        className="gallery-filter"
+        onClick={() => filter.current?.showModal()}
+        aria-haspopup="dialog"
+      >
+        Filter{category >= 0 ? ' (1)' : ''}
+      </button>
+      <dialog
+        className="filter-menu"
+        ref={filter}
+        aria-labelledby="filter-title"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) filter.current?.close();
         }}
       >
-        <div className="scene-host" ref={host} />
-        {!spatial && (
-          <button
-            className="plate-fallback"
-            aria-label={'View ' + work.title}
-            onPointerDown={(e) => {
-              startX.current = e.clientX;
-            }}
-            onPointerUp={(e) => {
-              const dx = e.clientX - startX.current;
-              if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
-            }}
-            onClick={(e) => {
-              if (e.detail === 0 || Math.abs(e.clientX - startX.current) < 20) open();
-            }}
-          >
-            <img src={imageOf(work)} alt={work.title} loading="lazy" />
-          </button>
-        )}
-      </div>
-      <div className="exhibition-controls">
-        <div className="gallery-hint">
-          {spatial ? 'Drag to explore · Scroll to travel' : 'Browse the exhibition'}
+        <div>
+          <header>
+            <h2 id="filter-title">Filter by collection</h2>
+            <button aria-label="Close filters" onClick={() => filter.current?.close()}>
+              ×
+            </button>
+          </header>
+          {['All paintings', ...rooms.map(([name]) => name)].map((name, i) => (
+            <button key={name} onClick={() => choose(i - 1)} aria-pressed={i - 1 === category}>
+              {name}
+              <span aria-hidden="true">{i - 1 === category ? '●' : '○'}</span>
+            </button>
+          ))}
         </div>
-        <button className="gallery-caption" onClick={open}>
-          <i>{work.title}</i>
-          <span>
-            {work.artist} · {work.date} ↗
-          </span>
-        </button>
-        <div className="panel-step">
-          <span>
-            {plate(active + 1)} / {paintings.length}
-          </span>
-          <button
-            className="round-button"
-            aria-label="Previous gallery painting"
-            onClick={() => step(-1)}
-          >
-            ←
-          </button>
-          <button
-            className="round-button"
-            aria-label="Next gallery painting"
-            onClick={() => step(1)}
-          >
-            →
-          </button>
-        </div>
-      </div>
-      <Link className="gallery-exit text-link" href="/#collections">
-        Continue to collections ↓
-      </Link>
+      </dialog>
+      <span className="sr-only" aria-live="polite">
+        {caption !== null ? works[caption]?.title : ''}
+      </span>
     </main>
   );
 }
