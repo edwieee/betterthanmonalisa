@@ -166,7 +166,7 @@ export function mountGallery(
     ambient.lerp(cursor, blend);
     const zoom = press?.drag ? 1.18 : 1;
     uniforms.zoom.value += (zoom - uniforms.zoom.value) * blend;
-    const bend = host.clientWidth <= 700 ? 0.012 : 0.22;
+    const bend = host.clientWidth <= 700 ? 0.003 : 0.05;
     uniforms.bend.value += (bend - uniforms.bend.value) * blend;
     uniforms.origin.value.copy(origin).addScaledVector(ambient, 0.075);
     const next = keyboard
