@@ -1,6 +1,6 @@
 # Better Than Mona Lisa
 
-An independent digital museum of 42 public-domain paintings. Giovanni Paolo Panini’s *Interior of Saint Peter’s, Rome* opens the exhibition. From there, visitors can explore a curved gallery, follow one of eight thematic collections, or open a painting directly in its own viewing room.
+An independent digital museum of 42 public-domain paintings. Giovanni Paolo Panini’s *Interior of Saint Peter’s, Rome* opens the exhibition. From there, visitors can explore the full-screen gallery at `/gallery`, follow one of eight thematic collections, or open a painting directly in its own viewing room.
 
 ## Run locally
 
@@ -18,28 +18,29 @@ Open [the local museum](http://localhost:3000). Artwork, metadata, and fonts shi
 | Action | Control |
 | --- | --- |
 | Change the entrance painting | Use the two arrows beside the entrance plate number. Select the artwork title to see its record. |
-| Explore in three dimensions | Drag horizontally around the wall and vertically between its three rows. Scroll to travel around the exhibition. |
-| Inspect a painting | Hover to bring a panel forward and reveal its title and artist. Select the panel or its caption to enter the viewing room. |
-| Navigate by keyboard | Tab to the gallery, use the left and right arrow keys to browse, and press Enter to open a painting. The gallery also has labeled previous and next buttons. |
-| Explore on a phone | Swipe horizontally or use the arrow buttons. Tap the painting or its caption for details. |
-| Leave the gallery | Choose **Continue to collections**. Wheel input also returns to page scrolling at the ends of the wall. |
+| Enter the gallery | Choose **Enter the gallery** on the entrance wall or **Gallery** in the navigation. |
+| Explore the wall | Drag or scroll in either direction. The grid repeats as you travel. Hover to highlight a painting and click to enter its viewing room. |
+| Navigate by keyboard | Tab to the grid, use the arrow keys to centre a painting, and press Enter to open it. |
+| Explore on a phone | Swipe across the grid and tap a painting to open it. |
+| Browse a selection | Choose **Filter** to show a collection, or use the list icon to open its art index. |
+| Leave the gallery | Choose **Exit gallery** to return to the entrance, or select **Collections** or **About** in the bottom navigation. |
 | Look closer | Select **Fullscreen** in a viewing room. Use **Close** or Escape to leave the enlarged view. |
 | Follow a collection | Open a room in the collection directory. Previous and next painting links follow that collection’s sequence. |
 | Visit the source | **View original artwork** opens the individual National Gallery of Art record in a new tab. |
 
-Small screens, reduced-motion preferences, and unavailable WebGL renderers use a single-painting presentation with the same collection and details.
+When visitors prefer reduced motion or WebGL is unavailable, the gallery presents the same paintings as a scrollable grid of links.
 
 ## Implementation
 
 Next.js App Router and TypeScript provide stable, pre-rendered routes for every painting and collection. Tailwind CSS and component styles handle the layout. Cormorant Garamond and DM Sans are served locally through Fontsource.
 
-The exhibition uses Three.js, a perspective camera, curved subdivided planes, and raycasting. Panel dimensions follow the aspect ratio of each reproduction. Frame-time-based damping controls the camera, drag release, pointer response, and hover emphasis. The renderer loads near the exhibition, pauses when the wall leaves the viewport, and releases its resources on unmount. GSAP and ScrollTrigger coordinate the entrance artwork and text during scrolling.
+The gallery draws the paintings and captions into one texture atlas. A Three.js fragment shader tiles the atlas across the viewport, bends the column rules, and darkens the corners. Pointer picking uses the same lens coordinates as the shader. The canvas redraws during interaction and while drag inertia settles. GSAP and ScrollTrigger coordinate the entrance artwork and text during scrolling.
 
 | Location | Contents |
 | --- | --- |
 | `app/` | Homepage, collection routes, painting routes, and layout |
 | `components/` | Entrance, editorial sections, gallery controls, and viewing room |
-| `lib/gallery-scene.ts` | WebGL geometry, pointer picking, camera, and renderer lifecycle |
+| `lib/gallery-scene.ts` | Artwork atlas, grid shader, pointer picking, and drag interaction |
 | `lib/museum.ts` | Collection definitions and artwork lookup |
 | `data/paintings.json` | Museum metadata, local dimensions, source records, and editorial notes |
 | `public/art/` | Full viewing images and smaller WebP gallery textures |
