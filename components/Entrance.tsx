@@ -47,19 +47,16 @@ export default function Entrance() {
       <div className="wall-wash" />
       <Header />
       <div className="entrance-copy">
-        <p className="overline">An independent digital museum</p>
         <h1>
           Better Than
           <br />
           <em>Mona Lisa.</em>
         </h1>
-        <p className="subhead">She’s iconic. These deserve your attention too.</p>
         <Link href="/gallery" className="enter-link">
           Enter the gallery <span aria-hidden="true">→</span>
         </Link>
       </div>
       <div className="wall-label">
-        <span className="overline">On the wall</span>
         <Link href={'/painting/' + painting.id + '?from=entrance'}>{painting.title}</Link>
         <span>
           {painting.artist} <i>·</i> {painting.date}

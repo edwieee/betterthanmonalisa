@@ -132,9 +132,6 @@
   font-weight: 500;
   letter-spacing: -0.066em;
 }
-.subhead {
-  font: 500 clamp(18px, 1.5vw, 26px)/1.3 var(--serif);
-}
 .enter-link {
   display: inline-flex;
   align-items: center;
@@ -168,10 +165,6 @@
   left: 4.15%;
   display: grid;
   gap: 3px;
-}
-.wall-label .overline {
-  margin-bottom: 4px;
-  font-size: 9px;
 }
 .wall-label a {
   font: italic 500 clamp(18px, 1.65vw, 25px)/1.05 var(--serif);
