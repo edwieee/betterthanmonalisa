@@ -51,8 +51,6 @@
   width: 100%;
   height: auto;
 }
-.gallery-exit,
-.gallery-filter,
 .gallery-dock,
 .view-switch {
   border-radius: 100px;
@@ -62,24 +60,36 @@
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
+.gallery-exit,
+.gallery-filter {
+  display: inline-grid;
+  place-items: center;
+  min-height: 38px;
+  padding: 8px 16px;
+  font: 500 12px/1.25 var(--sans);
+  transition: background-color 0.2s;
+}
 .gallery-exit {
-  padding: 20px 24px;
-  background: #fff;
+  color: var(--ink);
+  background: var(--paper);
   text-shadow: none;
   text-transform: none;
+}
+.gallery-exit:hover {
+  background: #fff8e9;
 }
 .gallery-dock,
 .view-switch,
 .gallery-filter {
   position: absolute;
   bottom: max(3.5vh, env(safe-area-inset-bottom));
-  background: var(--glass);
 }
 .gallery-dock,
 .view-switch {
   display: flex;
   align-items: center;
   padding: 5px;
+  background: var(--glass);
 }
 .gallery-dock {
   left: 50%;
@@ -95,8 +105,7 @@
   color: #111;
 }
 .gallery-dock a:hover,
-.view-switch a:hover,
-.gallery-filter:hover {
+.view-switch a:hover {
   background: #ddd;
 }
 .view-switch {
@@ -127,8 +136,16 @@
 }
 .gallery-filter {
   right: var(--edge);
-  padding: 20px 24px;
-  border: 0;
+  color: var(--ivory);
+  background: var(--ink);
+  border: 1px solid #eae3d56b;
+}
+.gallery-filter:hover {
+  background: #343329;
+}
+.gallery-exit:focus-visible,
+.gallery-filter:focus-visible {
+  outline-offset: -4px;
 }
 .filter-menu {
   position: absolute;
@@ -223,20 +240,12 @@
   }
   .gallery-exit,
   .gallery-filter {
-    font: bold 10px/1 monospace;
-    text-transform: uppercase;
-    letter-spacing: 0;
-    padding: 10px 13px;
+    min-height: 44px;
+    padding-inline: 13px;
   }
   .gallery-filter {
-    inset: max(33px, calc(env(safe-area-inset-top) + 9px)) auto auto 50%;
+    inset: max(24px, env(safe-area-inset-top)) auto auto 50%;
     transform: translateX(-50%);
-    background: #141414b3;
-    color: white;
-    border: 1px solid #ffffff77;
-  }
-  .gallery-filter:hover {
-    background: #333;
   }
   .gallery-dock {
     bottom: max(30px, env(safe-area-inset-bottom));
