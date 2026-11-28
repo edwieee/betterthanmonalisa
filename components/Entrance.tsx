@@ -45,17 +45,9 @@ export default function Entrance() {
         ))}
       </div>
       <div className="wall-wash" />
-      <div className="draft-circle" aria-hidden="true">
-        <i />
-        <b />
-      </div>
       <Header />
       <div className="entrance-copy">
-        <p className="overline with-ornament">
-          <span />
-          An independent digital museum
-          <span />
-        </p>
+        <p className="overline">An independent digital museum</p>
         <h1>
           Better Than
           <br />
@@ -74,7 +66,6 @@ export default function Entrance() {
         </span>
       </div>
       <Link href="#about" className="scroll-link">
-        <span className="scroll-line" />
         Scroll to explore
       </Link>
       <div className="wall-pager">

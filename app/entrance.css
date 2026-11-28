@@ -99,48 +99,6 @@
     radial-gradient(ellipse at 50% 49%, #241e11a3 0%, #28211180 27%, #29221638 64%),
     linear-gradient(#36281225, #3a2e1938);
 }
-.draft-circle {
-  z-index: -1;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(72vh, 71vw);
-  aspect-ratio: 1;
-  border: 1px solid #e9ddbd45;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-.draft-circle:before,
-.draft-circle:after {
-  position: absolute;
-  content: '';
-  background: #eddfbb24;
-}
-.draft-circle:before {
-  top: 50%;
-  left: -100vw;
-  width: 200vw;
-  height: 1px;
-}
-.draft-circle:after {
-  left: 50%;
-  top: -100vh;
-  height: 200vh;
-  width: 1px;
-}
-.draft-circle i,
-.draft-circle b {
-  position: absolute;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  background: #e9dbc4;
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-.draft-circle b {
-  left: 100%;
-}
 .entrance-copy {
   position: absolute;
   inset: 49% auto auto 50%;
@@ -164,17 +122,6 @@
   font: 500 10px/1.5 var(--sans);
   letter-spacing: 0.19em;
   text-transform: uppercase;
-}
-.with-ornament {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 13px;
-}
-.with-ornament span {
-  width: 27px;
-  height: 1px;
-  background: #e0d4b6a8;
 }
 .entrance h1 {
   margin: 24px 0 20px;
@@ -266,16 +213,7 @@
 .scroll-link {
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 11px;
   font-size: 9px;
-}
-.scroll-line {
-  display: inline-block;
-  width: 1px;
-  height: 23px;
-  background: #eae3d5a0;
 }
 .museum-footer {
   min-height: 105px;
@@ -322,10 +260,6 @@
     font-size: clamp(78px, 16vw, 104px);
   }
   .entrance-copy {
-    top: 46%;
-  }
-  .draft-circle {
-    width: 91vw;
     top: 46%;
   }
   .wall-label {
